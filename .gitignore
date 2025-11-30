@@ -1,0 +1,13 @@
+# virtual environment
+.venv/
+
+# environment variables
+.env
+
+# python cache
+__pycache__/
+*.pyc
+
+# vector DB persistence
+chroma/
+vectorstore/
