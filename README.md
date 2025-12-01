@@ -1,15 +1,14 @@
+📚 RAG PDF Chatbot API  
+(LangChain v1.x + FastAPI + ChromaDB + OpenRouter)
 
-📚 RAG PDF Chatbot (LangChain v1.x + Chroma + OpenRouter)
+A production-ready Retrieval-Augmented Generation (RAG) chatbot API built with:
+- FastAPI
+- LangChain v1.x (Core / OpenAI / Community)
+- ChromaDB (persistent vector store)
+- OpenRouter LLMs (ChatOpenAI interface)
+- Session-based conversation memory
 
-A Retrieval-Augmented Generation (RAG) chatbot that can answer questions from a PDF using:
-
-- LangChain v1.x
-- ChatOpenAI (OpenRouter)
-- ChromaDB
-- OpenAI embeddings
-- Conversation memory with MessagesPlaceholder
-
-This project loads your PDF, chunks it, generates embeddings, stores them in a vector DB, and answers user questions using retrieved context.
+This project loads your PDF(s), chunks them, embeds them, stores them in Chroma, and exposes a /ask REST API endpoint that returns context-aware answers.
 
 ------------------------------------------------------------
 
@@ -17,27 +16,34 @@ This project loads your PDF, chunks it, generates embeddings, stores them in a v
 
 - Load any PDF file
 - Automatic text chunking with overlap
-- Embedding + Vector storage via ChromaDB
+- Embedding + vector storage (Chroma)
 - Semantic search retrieval
-- Chat-style Q&A with memory (HumanMessage / AIMessage)
-- Strict context-only answers (hallucination reduced)
+- Chat-style Q&A with per-session memory
+- Strict context-only answers to reduce hallucinations
+- FastAPI server with automatic Swagger UI
+- Persistent vectorstore (survives restarts)
 
 ------------------------------------------------------------
 
 🧰 Tech Stack
 
 - Python 3.10+
-- LangChain Core 1.x
-- langchain-openai
-- langchain-community
-- ChromaDB
-- OpenRouter API (ChatOpenAI models)
+- FastAPI 0.123+
+- Uvicorn 0.38+
+- LangChain v1.x
+  - langchain
+  - langchain-openai
+  - langchain-community
+  - langchain-text-splitters
+- ChromaDB 0.5.4 (legacy API for LangChain retriever)
+- OpenRouter API
+- pypdf
 
 ------------------------------------------------------------
 
 📦 Installation
 
-1. Create venv:
+1. Create virtual environment:
    python -m venv .venv
 
 2. Activate:
@@ -48,44 +54,86 @@ This project loads your PDF, chunks it, generates embeddings, stores them in a v
    Mac/Linux:
    source .venv/bin/activate
 
-3. Install:
+3. Install dependencies:
    pip install -r requirements.txt
 
 ------------------------------------------------------------
 
 🔑 Environment Variables
 
-Create .env:
+Create a file named .env:
 
-OPENROUTER_API_KEY=your_key
+OPENROUTER_API_KEY=your_key_here
 
-Get key from https://openrouter.ai
+Get your key from:
+https://openrouter.ai/
 
 ------------------------------------------------------------
 
-▶️ Running the Chatbot
+▶️ Building the Vectorstore
 
-python rag_pdf.py
+If using a setup script, run:
+
+python setup_vectorstore.py
+
+This will:
+- Load the PDF
+- Split it into text chunks
+- Embed each chunk
+- Save embeddings into /vectorstore
+
+------------------------------------------------------------
+
+▶️ Running the FastAPI Server
+
+Start FastAPI:
+uvicorn app:app --reload
+
+Documentation available at:
+Swagger UI → http://127.0.0.1:8000/docs
+ReDoc       → http://127.0.0.1:8000/redoc
+
+------------------------------------------------------------
+
+📡 REST API Usage
+
+POST /ask
+
+Example request:
+{
+  "session_id": 1,
+  "question": "What is the main idea of page 2?"
+}
+
+Example response:
+{
+  "question": "What is the main idea of page 2?",
+  "answer": "...",
+  "context_used": "...",
+  "history_size": 4
+}
 
 ------------------------------------------------------------
 
 🧠 RAG Pipeline
 
 1. Load PDF
-2. Split into text chunks
-3. Embed chunks
-4. Store in Chroma
-5. Retrieve relevant chunks
-6. Inject into prompt
-7. LLM answers using ONLY context
-8. Memory stored via HumanMessage / AIMessage
+2. Split into overlapping chunks
+3. Embed chunks using OpenAI embeddings
+4. Store embeddings inside ChromaDB
+5. Retrieve top-k relevant chunks
+6. Insert the chunks into prompt template
+7. LLM answers using ONLY retrieved context
+8. HumanMessage / AIMessage stored as conversation memory
 
 ------------------------------------------------------------
 
 📌 Future Improvements
 
 - Streaming responses
-- Web UI (Gradio)
-- Multi-PDF support
-- Source citations
-
+- Web UI (React / Gradio)
+- Support multiple PDFs
+- Source citations (page-level)
+- Reranking (bge-reranker)
+- API key authentication
+- Docker deployment
