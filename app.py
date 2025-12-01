@@ -1,7 +1,8 @@
 
 from dotenv import load_dotenv
+from fastapi import FastAPI
+from pydantic import BaseModel
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_openai import ChatOpenAI
@@ -11,27 +12,21 @@ from langchain_core.messages import HumanMessage, AIMessage
 import os
 
 load_dotenv()
-# pdf loader
-loader = PyPDFLoader("NLP_midterm_juyeong_shotitouch.pdf")
-docs = loader.load()
 
-# split into chunks
-splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500,
-    chunk_overlap=100
-)
+app = FastAPI()
 
-chunks = splitter.split_documents(docs)
-
-# embedding chunks -> store in vector db
+# setup vectorstore
 embeddings = OpenAIEmbeddings(
     api_key=os.getenv("OPENROUTER_API_KEY"),
     base_url="https://openrouter.ai/api/v1"
 )
 
-vectorstore = Chroma.from_documents(chunks, embeddings)
+vectorstore = Chroma(
+    embedding_function=embeddings,
+    persist_directory="vectorstore"
+)
 
-retriever = vectorstore.as_retriever()
+retriever = vectorstore.as_retriever(search_kwargs={"k": 3}) # pull 3 chunks
 
 # build llm chain
 llm = ChatOpenAI(
@@ -42,7 +37,8 @@ llm = ChatOpenAI(
 )
 
 # keep chat history
-history = []
+session_history = {}
+MAX_HISTORY = 5
 
 prompt = ChatPromptTemplate.from_messages([
     ('system', "You are a helpful assistant. Use ONLY the context. If it does not contain the answer, reply: 'Not found in context'."),
@@ -51,26 +47,38 @@ prompt = ChatPromptTemplate.from_messages([
 ])
 
 parser = StrOutputParser()
-chain = prompt | llm | parser
 
 # rag search Chroma and output
-def rag_answer(question):
+def rag_answer(chain, question, history):
     docs = retriever.invoke(question)
     context = "\n\n---\n\n".join([d.page_content for d in docs])
-    return chain.invoke({"history": history, "question": question, "context": context})
+    return chain.invoke({"history": history, "question": question, "context": context}), context
 
-# chatbot
-if __name__ == "__main__":
-    while True:
-        # question: user
-        q = input("\nAsk (or 'exit'): ")
-        if q.lower() == "exit":
-            break
+# Request schema
+class Query(BaseModel):
+    session_id: int
+    question: str
 
-        # answer: assistant
-        a = rag_answer(q)
-        print("\nAnswer:\n", a)
-        
-        # store history
-        history.append(HumanMessage(content=q))
-        history.append(AIMessage(content=a))
+# ----------------------------------------
+# REST API endpoint
+# ----------------------------------------
+@app.post("/ask")
+async def ask(q: Query):
+    # Retrieve relevant chunks
+    session = q.session_id
+
+    if session not in session_history:
+        session_history[session] = []
+
+    history = session_history[session]
+    chain = prompt | llm | parser
+    answer, context = rag_answer(chain, q.question, history)
+
+    history.append(HumanMessage(content=q.question))
+    history.append(AIMessage(content=answer))
+    session_history[session] = history[-MAX_HISTORY:]
+    return {
+        "question": q.question,
+        "answer": answer,
+        "context_used": context,
+    }

@@ -1,8 +1,9 @@
-langchain
-langchain-openai
-langchain-community
-langchain-text-splitters
-chromadb
-python-dotenv
-pypdf
-dotenv
+langchain==1.1.0
+langchain-openai==1.1.0
+langchain-community==0.4.1
+langchain-text-splitters==1.0.0
+chromadb==0.5.4
+python-dotenv==1.2.1
+pypdf==6.4.0
+fastapi==0.123.0
+uvicorn==0.38.0
